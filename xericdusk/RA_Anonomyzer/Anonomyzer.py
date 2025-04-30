@@ -21,6 +21,8 @@ if new_name:
         f.write(new_name + '\n')
     st.experimental_rerun()
 
+uploaded_file = st.file_uploader('Choose a CSV file', type='csv')
+
 import pandas as pd
 import numpy as np
 
