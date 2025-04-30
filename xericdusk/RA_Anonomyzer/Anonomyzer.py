@@ -15,11 +15,22 @@ st.title('CSV Anonomyzer')
 st.write('Upload a CSV file. All person names and locations will be replaced with "redacted".')
 
 # Add a text input at the TOP of the app to allow adding a name to first_names.txt (permanently)
-new_name = st.text_input('Add a name to first_names.txt (permanently):')
-if new_name:
-    with open('first_names.txt', 'a') as f:
-        f.write(new_name + '\n')
-    st.experimental_rerun()
+with st.form(key='add_name_form'):
+    new_name = st.text_input('Add a name to first_names.txt (permanently):')
+    add_clicked = st.form_submit_button('Add Name')
+    if add_clicked:
+        name = new_name.strip().lower()
+        if name:
+            with open('first_names.txt', 'a+') as f:
+                f.seek(0)
+                existing = set(line.strip().lower() for line in f)
+                if name not in existing:
+                    f.write(f"{name}\n")
+                    st.success(f'Added "{name}" to first_names.txt. Please refresh the page to see the update.')
+                else:
+                    st.info(f'"{name}" is already in first_names.txt.')
+        else:
+            st.warning('Please enter a valid name.')
 
 uploaded_file = st.file_uploader('Choose a CSV file', type='csv')
 
