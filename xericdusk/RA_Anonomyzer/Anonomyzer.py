@@ -4,17 +4,12 @@ import spacy
 import tempfile
 import os
 
-# Load spaCy model for NER (download if necessary)
-def load_spacy_model():
-    try:
-        nlp = spacy.load('en_core_web_sm')
-    except OSError:
-        import subprocess
-        subprocess.run(['python', '-m', 'spacy', 'download', 'en_core_web_sm'])
-        nlp = spacy.load('en_core_web_sm')
-    return nlp
-
-nlp = load_spacy_model()
+# Load spaCy model for NER
+try:
+    nlp = spacy.load('en_core_web_sm')
+except OSError:
+    st.error('The spaCy model en_core_web_sm is not installed. Please add it to requirements.txt as a direct URL. See README for details.')
+    st.stop()
 
 st.title('CSV Anonomyzer')
 st.write('Upload a CSV file. All person names and locations will be replaced with "redacted".')
