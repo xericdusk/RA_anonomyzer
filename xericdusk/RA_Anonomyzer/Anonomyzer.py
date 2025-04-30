@@ -21,6 +21,15 @@ import numpy as np
 
 import re
 
+def load_first_names(path='first_names.txt'):
+    try:
+        with open(path, 'r') as f:
+            return set(name.strip().lower() for name in f if name.strip())
+    except Exception:
+        return set()
+
+FIRST_NAMES = load_first_names()
+
 def redact_text(text, nlp):
     # Handle NaN or missing values
     if pd.isna(text):
@@ -33,7 +42,14 @@ def redact_text(text, nlp):
     for ent in doc.ents:
         if ent.label_ in ['PERSON', 'GPE', 'LOC']:
             redacted = redacted.replace(ent.text, 'REDACTED')
+    # Redact standalone first names (whole words, case-insensitive)
+    def redact_first_name(match):
+        return 'REDACTED'
+    if FIRST_NAMES:
+        pattern = r'\\b(' + '|'.join(re.escape(name) for name in FIRST_NAMES) + r')\\b'
+        redacted = re.sub(pattern, redact_first_name, redacted, flags=re.IGNORECASE)
     return redacted
+
 
 def highlight_redacted(val):
     if isinstance(val, str) and 'REDACTED' in val:
