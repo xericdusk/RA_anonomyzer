@@ -60,7 +60,7 @@ def redact_text(text, nlp):
     def redact_first_name(match):
         return 'REDACTED'
     if FIRST_NAMES:
-        pattern = r'\\b(' + '|'.join(re.escape(name) for name in FIRST_NAMES) + r')\\b'
+        pattern = r'\b(' + '|'.join(re.escape(name) for name in FIRST_NAMES) + r')\b'
         redacted = re.sub(pattern, redact_first_name, redacted, flags=re.IGNORECASE)
     return redacted
 
