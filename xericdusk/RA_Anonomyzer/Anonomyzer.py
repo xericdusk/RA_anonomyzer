@@ -42,7 +42,11 @@ def load_first_names(txt_path='first_names.txt', csv_path='common_first_names.cs
         pass
     return names
 
-FIRST_NAMES = load_first_names()
+# Use session state for dynamic name additions
+if 'extra_names' not in st.session_state:
+    st.session_state.extra_names = set()
+
+FIRST_NAMES = load_first_names().union(st.session_state.extra_names)
 
 def redact_text(text, nlp):
     # Handle NaN or missing values
@@ -99,6 +103,16 @@ if uploaded_file is not None:
     transposed_df = redacted_df.transpose()
     # Use Styler to highlight 'REDACTED' in red
     st.write(transposed_df.style.format(highlight_redacted).to_html(escape=False), unsafe_allow_html=True)
+    # UI to add a missed name for redaction
+    st.markdown('---')
+    st.subheader('Add a missed name to redaction')
+    new_name = st.text_input('Enter a name exactly as it appears (case-insensitive):', key='add_name_input')
+    if st.button('Add Name to Redaction'):
+        if new_name.strip():
+            st.session_state.extra_names.add(new_name.strip().lower())
+            st.experimental_rerun()
+        else:
+            st.warning('Please enter a valid name.')
     # Optionally, allow download (original orientation)
     csv = redacted_df.to_csv(index=False)
     st.download_button('Download Redacted CSV', csv, file_name='redacted.csv', mime='text/csv')
