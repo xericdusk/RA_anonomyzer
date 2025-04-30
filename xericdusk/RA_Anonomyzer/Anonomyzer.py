@@ -21,12 +21,26 @@ import numpy as np
 
 import re
 
-def load_first_names(path='first_names.txt'):
+def load_first_names(txt_path='first_names.txt', csv_path='common_first_names.csv'):
+    names = set()
+    # Load from txt
     try:
-        with open(path, 'r') as f:
-            return set(name.strip().lower() for name in f if name.strip())
+        with open(txt_path, 'r') as f:
+            names.update(name.strip().lower() for name in f if name.strip())
     except Exception:
-        return set()
+        pass
+    # Load from csv
+    try:
+        import csv
+        with open(csv_path, 'r') as f:
+            reader = csv.reader(f)
+            header = next(reader, None)
+            for row in reader:
+                if row and row[0].strip():
+                    names.add(row[0].strip().lower())
+    except Exception:
+        pass
+    return names
 
 FIRST_NAMES = load_first_names()
 
