@@ -44,21 +44,6 @@ def load_first_names(txt_path='first_names.txt', csv_path='common_first_names.cs
 
 FIRST_NAMES = load_first_names()
 
-# Debug: Show first 20 first names and regex pattern in Streamlit
-with st.expander('Debug: First Names and Regex Pattern'):
-    st.write('Sample first names:', list(FIRST_NAMES)[:20])
-    if FIRST_NAMES:
-        pattern = r'(?<!\w)(' + '|'.join(re.escape(name) for name in FIRST_NAMES) + r')(?!\w)'
-        st.write('Regex pattern:', pattern)
-    else:
-        pattern = ''
-
-# Add a test field for live redaction
-with st.expander('Test Redaction'):
-    test_input = st.text_input('Type a sample string to see redaction:')
-    if test_input:
-        st.write('Redacted:', redact_text(test_input, nlp))
-
 def redact_text(text, nlp):
     # Handle NaN or missing values
     if pd.isna(text):
@@ -78,6 +63,21 @@ def redact_text(text, nlp):
         pattern = r'(?<!\w)(' + '|'.join(re.escape(name) for name in FIRST_NAMES) + r')(?!\w)'
         redacted = re.sub(pattern, redact_first_name, redacted, flags=re.IGNORECASE)
     return redacted
+
+# Debug: Show first 20 first names and regex pattern in Streamlit
+with st.expander('Debug: First Names and Regex Pattern'):
+    st.write('Sample first names:', list(FIRST_NAMES)[:20])
+    if FIRST_NAMES:
+        pattern = r'(?<!\w)(' + '|'.join(re.escape(name) for name in FIRST_NAMES) + r')(?!\w)'
+        st.write('Regex pattern:', pattern)
+    else:
+        pattern = ''
+
+# Add a test field for live redaction
+with st.expander('Test Redaction'):
+    test_input = st.text_input('Type a sample string to see redaction:')
+    if test_input:
+        st.write('Redacted:', redact_text(test_input, nlp))
 
 
 def highlight_redacted(val):
