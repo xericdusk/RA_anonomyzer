@@ -105,8 +105,34 @@ if uploaded_file is not None:
     st.write(transposed_df.style.format(highlight_redacted).to_html(escape=False), unsafe_allow_html=True)
     # UI to add a missed name for redaction
     st.markdown('---')
-    st.subheader('Add a missed name to redaction')
-    new_name = st.text_input('Enter a name exactly as it appears (case-insensitive):', key='add_name_input')
+    st.subheader('Add missed names to redaction')
+    # Extract unique, non-redacted, capitalized words from the DataFrame
+    import itertools
+    def extract_candidates(df):
+        words = set()
+        for val in df.select_dtypes(include=['object', 'string']).values.flatten():
+            if isinstance(val, str):
+                for word in val.split():
+                    w = word.strip('.,;:!?()[]"\'')
+                    if (
+                        w
+                        and w.lower() != 'redacted'
+                        and w[0].isupper()
+                        and w.isalpha()
+                        and len(w) > 1
+                    ):
+                        words.add(w)
+        return sorted(words)
+    candidates = extract_candidates(redacted_df)
+    selected_names = st.multiselect('Select names to add for redaction:', candidates, key='add_name_multiselect')
+    if st.button('Add Selected Names'):
+        if selected_names:
+            st.session_state.extra_names.update(n.lower() for n in selected_names)
+            st.experimental_rerun()
+        else:
+            st.warning('Please select at least one name.')
+    # Still allow manual entry for edge cases
+    new_name = st.text_input('Or enter a name manually:', key='add_name_input')
     if st.button('Add Name to Redaction'):
         if new_name.strip():
             st.session_state.extra_names.add(new_name.strip().lower())
