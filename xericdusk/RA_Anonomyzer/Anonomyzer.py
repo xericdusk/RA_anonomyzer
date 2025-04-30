@@ -14,7 +14,12 @@ except OSError:
 st.title('CSV Anonomyzer')
 st.write('Upload a CSV file. All person names and locations will be replaced with "redacted".')
 
-uploaded_file = st.file_uploader('Choose a CSV file', type='csv')
+# Add a text input at the TOP of the app to allow adding a name to first_names.txt (permanently)
+new_name = st.text_input('Add a name to first_names.txt (permanently):')
+if new_name:
+    with open('first_names.txt', 'a') as f:
+        f.write(new_name + '\n')
+    st.experimental_rerun()
 
 import pandas as pd
 import numpy as np
@@ -42,31 +47,28 @@ def load_first_names(txt_path='first_names.txt', csv_path='common_first_names.cs
         pass
     return names
 
-# Use session state for dynamic name additions
-if 'extra_names' not in st.session_state:
-    st.session_state.extra_names = set()
-
-FIRST_NAMES = load_first_names().union(st.session_state.extra_names)
+FIRST_NAMES = load_first_names()
 
 def redact_text(text, nlp):
     # Handle NaN or missing values
     if pd.isna(text):
         return text
     text = str(text)
-    # Regex for street addresses (simple version)
-    street_regex = r"\b\d{1,5}\s+([A-Za-z0-9.,'\-]+\s){1,4}(Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Way|Terrace|Ter|Place|Pl|Circle|Cir)\b"
-    redacted = re.sub(street_regex, 'REDACTED', text, flags=re.IGNORECASE)
-    doc = nlp(redacted)
+    # SpaCy NER redaction
+    doc = nlp(text)
     for ent in doc.ents:
         if ent.label_ in ['PERSON', 'GPE', 'LOC']:
-            redacted = redacted.replace(ent.text, 'REDACTED')
+            text = text.replace(ent.text, 'REDACTED')
+    # Regex for street addresses (simple version)
+    street_regex = r"\b\d{1,5}\s+([A-Za-z0-9.,'\-]+\s){1,4}(Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Way|Terrace|Ter|Place|Pl|Circle|Cir)\b"
+    text = re.sub(street_regex, 'REDACTED', text, flags=re.IGNORECASE)
     # Redact standalone first names (case-insensitive, robust boundaries)
     def redact_first_name(match):
         return 'REDACTED'
     if FIRST_NAMES:
         pattern = r'(?<!\w)(' + '|'.join(re.escape(name) for name in FIRST_NAMES) + r')(?!\w)'
-        redacted = re.sub(pattern, redact_first_name, redacted, flags=re.IGNORECASE)
-    return redacted
+        text = re.sub(pattern, redact_first_name, text, flags=re.IGNORECASE)
+    return text
 
 # Debug: Show first 20 first names and regex pattern in Streamlit
 with st.expander('Debug: First Names and Regex Pattern'):
@@ -103,42 +105,7 @@ if uploaded_file is not None:
     transposed_df = redacted_df.transpose()
     # Use Styler to highlight 'REDACTED' in red
     st.write(transposed_df.style.format(highlight_redacted).to_html(escape=False), unsafe_allow_html=True)
-    # UI to add a missed name for redaction
-    st.markdown('---')
-    st.subheader('Add missed names to redaction')
-    # Extract unique, non-redacted, capitalized words from the DataFrame
-    import itertools
-    def extract_candidates(df):
-        words = set()
-        for val in df.select_dtypes(include=['object', 'string']).values.flatten():
-            if isinstance(val, str):
-                for word in val.split():
-                    w = word.strip('.,;:!?()[]"\'')
-                    if (
-                        w
-                        and w.lower() != 'redacted'
-                        and w[0].isupper()
-                        and w.isalpha()
-                        and len(w) > 1
-                    ):
-                        words.add(w)
-        return sorted(words)
-    candidates = extract_candidates(redacted_df)
-    selected_names = st.multiselect('Select names to add for redaction:', candidates, key='add_name_multiselect')
-    if st.button('Add Selected Names'):
-        if selected_names:
-            st.session_state.extra_names.update(n.lower() for n in selected_names)
-            st.experimental_rerun()
-        else:
-            st.warning('Please select at least one name.')
-    # Still allow manual entry for edge cases
-    new_name = st.text_input('Or enter a name manually:', key='add_name_input')
-    if st.button('Add Name to Redaction'):
-        if new_name.strip():
-            st.session_state.extra_names.add(new_name.strip().lower())
-            st.experimental_rerun()
-        else:
-            st.warning('Please enter a valid name.')
+
     # Optionally, allow download (original orientation)
     csv = redacted_df.to_csv(index=False)
     st.download_button('Download Redacted CSV', csv, file_name='redacted.csv', mime='text/csv')
