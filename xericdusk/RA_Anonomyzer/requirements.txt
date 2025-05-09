@@ -3,4 +3,6 @@ pandas
 numpy==1.26.4
 thinc==8.2.2
 spacy==3.7.4
-https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
+torch>=2.0.0
+spacy-curated-transformers>=0.2.2
+https://github.com/explosion/spacy-models/releases/download/en_core_web_trf-3.8.0/en_core_web_trf-3.8.0-py3-none-any.whl
