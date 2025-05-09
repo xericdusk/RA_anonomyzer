@@ -3,68 +3,29 @@ import pandas as pd
 import spacy
 import tempfile
 import os
-import torch
-
-# Configure device options
-use_gpu = False
-device = 'cpu'  # Default to CPU for stability
+import re
 
 # Create sidebar section for model info
 st.sidebar.title("Model Information")
 
-# Check if MPS is available
-mps_available = torch.backends.mps.is_available()
-st.sidebar.write(f"MPS Support: {'Available' if mps_available else 'Not Available'}")
-
-# Try to load model with appropriate fallbacks for Streamlit Community Cloud
+# Try to load the model
 try:
-    # First attempt: Try the transformer model if environment resources allow
-    try:
-        # Check if we're in a resource-constrained environment (like Streamlit Cloud)
-        import psutil
-        memory_gb = psutil.virtual_memory().total / (1024 * 1024 * 1024)
-        
-        # Transformer model needs at least 4GB RAM, otherwise use the small model
-        if memory_gb >= 4.0:
-            try:
-                nlp = spacy.load('en_core_web_trf')
-                model_name = 'en_core_web_trf'
-                st.sidebar.success(f"Using transformer model: {model_name}")
-                st.sidebar.write("Enhanced recognition of entities including PERSON, LOCATION, etc.")
-            except OSError:
-                # Fall back to standard model
-                nlp = spacy.load('en_core_web_sm')
-                model_name = 'en_core_web_sm'
-                st.sidebar.warning(f"Using standard model: {model_name} (transformer model not found)")
-        else:
-            # Low memory environment - explicitly use small model
-            nlp = spacy.load('en_core_web_sm')
-            model_name = 'en_core_web_sm'
-            st.sidebar.info(f"Using lightweight model: {model_name} (limited system resources)")
-    except ImportError:
-        # psutil not available, try transformer, fallback to small
-        try:
-            nlp = spacy.load('en_core_web_trf')
-            model_name = 'en_core_web_trf'
-            st.sidebar.success(f"Using transformer model: {model_name}")
-        except OSError:
-            nlp = spacy.load('en_core_web_sm')
-            model_name = 'en_core_web_sm'
-            st.sidebar.warning(f"Using standard model: {model_name}")
-            
+    # Load the spaCy model - using only the small model for cloud compatibility
+    nlp = spacy.load('en_core_web_sm')
+    model_name = 'en_core_web_sm'
+    st.sidebar.success(f"Using model: {model_name}")
+    st.sidebar.write("Basic recognition of entities including PERSON, LOCATION, etc.")
 except Exception as e:
-    st.error(f"Error loading spaCy models: {str(e)}")
-    st.error('Please ensure spaCy and at least one model is installed correctly.')
+    st.error(f"Error loading spaCy model: {str(e)}")
+    st.error('Please ensure spaCy and en_core_web_sm are installed correctly.')
     st.stop()
 
 st.title('CSV Anonomyzer')
 
-# Create a prominent model indicator at the top of the main UI
-model_color = "green" if model_name == "en_core_web_trf" else "orange"
-model_display_name = "Transformer (High Accuracy)" if model_name == "en_core_web_trf" else "Standard (Basic)"
-st.markdown(f"<div style='padding:10px; background-color:{'#D4EDDA' if model_name == 'en_core_web_trf' else '#FFF3CD'}; border-radius:5px; margin-bottom:15px;'>"
-           f"<span style='font-weight:bold; color:{'green' if model_name == 'en_core_web_trf' else 'orange'};'>Active Model:</span> "
-           f"<span style='font-weight:bold;'>{model_display_name}</span>"
+# Create a model indicator at the top of the main UI
+st.markdown(f"<div style='padding:10px; background-color:#FFF3CD; border-radius:5px; margin-bottom:15px;'>"
+           f"<span style='font-weight:bold; color:orange;'>Active Model:</span> "
+           f"<span style='font-weight:bold;'>Standard (Basic)</span>"
            f"</div>", unsafe_allow_html=True)
 
 st.write('Upload a CSV file. All person names and locations will be replaced with "redacted".')
@@ -91,7 +52,6 @@ uploaded_file = st.file_uploader('Choose a CSV file', type='csv')
 
 import pandas as pd
 import numpy as np
-import re
 
 def load_first_names(txt_path='first_names.txt', csv_path='common_first_names.csv'):
     names = set()
@@ -129,8 +89,7 @@ def redact_text(text, nlp):
     
     try:
         # Use a max length for processing to avoid memory issues
-        # Split long text into chunks if needed
-        MAX_LENGTH = 25000  # Set a reasonable limit based on available memory
+        MAX_LENGTH = 25000
         
         if len(text) > MAX_LENGTH:
             chunks = [text[i:i+MAX_LENGTH] for i in range(0, len(text), MAX_LENGTH)]
@@ -140,7 +99,6 @@ def redact_text(text, nlp):
                     doc = nlp(chunk)
                     # Apply entity redaction on this chunk
                     for ent in doc.ents:
-                        # Enhanced entity recognition with transformer model
                         if ent.label_ in ['PERSON', 'ORG', 'GPE', 'LOC', 'FAC']:
                             processed_text = processed_text.replace(ent.text, 'REDACTED')
                 except Exception as chunk_err:
@@ -155,7 +113,7 @@ def redact_text(text, nlp):
         st.sidebar.error(f"NER processing error: {str(e)[:100]}...")
         # Continue with other redaction methods if NER fails
     
-    # Regex for street addresses (enhanced version)
+    # Regex for street addresses
     street_regex = r"\b\d{1,5}\s+([A-Za-z0-9.,'\-]+\s){1,4}(Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Way|Terrace|Ter|Place|Pl|Circle|Cir)\b"
     text = re.sub(street_regex, 'REDACTED', text, flags=re.IGNORECASE)
     
@@ -166,31 +124,16 @@ def redact_text(text, nlp):
     
     return text
 
-# Debug: Show technical information and settings
-with st.expander('Debug: Technical Information'):
-    # System info
-    st.subheader("System Information")
-    try:
-        import psutil
-        memory_gb = psutil.virtual_memory().total / (1024 * 1024 * 1024)
-        st.write(f"System Memory: {memory_gb:.2f} GB")
-    except ImportError:
-        st.write("System Memory: [Unable to detect - psutil not available]")
-    
+# Debug: Show technical information and first names
+with st.expander('Debug: Information'):
     # Model info
     st.subheader("Model Information")
     st.write(f"Active Model: {model_name}")
-    st.write(f"Model Type: {'Transformer-based (large)' if model_name == 'en_core_web_trf' else 'Statistical (small)'}")
     
     # First names list info
     st.subheader("First Names Data")
     st.write(f"Total first names loaded: {len(FIRST_NAMES)}")
     st.write('Sample first names:', list(FIRST_NAMES)[:20])
-    if FIRST_NAMES:
-        pattern = r'(?<!\w)(' + '|'.join(re.escape(name) for name in FIRST_NAMES) + r')(?!\w)'
-        st.write('First names regex pattern:', pattern)
-    else:
-        pattern = ''
 
 # Add a test field for live redaction
 with st.expander('Test Redaction'):
@@ -198,13 +141,11 @@ with st.expander('Test Redaction'):
     if test_input:
         st.write('Redacted:', redact_text(test_input, nlp))
 
-
 def highlight_redacted(val):
     if isinstance(val, str) and 'REDACTED' in val:
         # Highlight all occurrences of REDACTED in red
         return val.replace('REDACTED', '<span style="color: red; font-weight: bold;">REDACTED</span>')
     return val
-
 
 if uploaded_file is not None:
     # Read CSV
