@@ -16,28 +16,57 @@ st.sidebar.title("Model Information")
 mps_available = torch.backends.mps.is_available()
 st.sidebar.write(f"MPS Support: {'Available' if mps_available else 'Not Available'}")
 
-# Try to load GPU-accelerated model first, then fallback to CPU if needed
+# Try to load model with appropriate fallbacks for Streamlit Community Cloud
 try:
-    # First, try to load the transformer model
+    # First attempt: Try the transformer model if environment resources allow
     try:
-        # To avoid potential MPS compatibility issues, we'll load with CPU first
-        nlp = spacy.load('en_core_web_trf')
-        model_name = 'en_core_web_trf'
-        st.sidebar.success(f"Using transformer model: {model_name}")
-        st.sidebar.write("Enhanced recognition of entities including PERSON, LOCATION, etc.")
-    except OSError:
-        # Fall back to standard model if transformer is not installed
-        nlp = spacy.load('en_core_web_sm')
-        model_name = 'en_core_web_sm'
-        st.sidebar.warning(f"Using standard model: {model_name}")
-        st.sidebar.info("For better entity recognition, install the transformer model with:\n`python -m spacy download en_core_web_trf`")
+        # Check if we're in a resource-constrained environment (like Streamlit Cloud)
+        import psutil
+        memory_gb = psutil.virtual_memory().total / (1024 * 1024 * 1024)
         
+        # Transformer model needs at least 4GB RAM, otherwise use the small model
+        if memory_gb >= 4.0:
+            try:
+                nlp = spacy.load('en_core_web_trf')
+                model_name = 'en_core_web_trf'
+                st.sidebar.success(f"Using transformer model: {model_name}")
+                st.sidebar.write("Enhanced recognition of entities including PERSON, LOCATION, etc.")
+            except OSError:
+                # Fall back to standard model
+                nlp = spacy.load('en_core_web_sm')
+                model_name = 'en_core_web_sm'
+                st.sidebar.warning(f"Using standard model: {model_name} (transformer model not found)")
+        else:
+            # Low memory environment - explicitly use small model
+            nlp = spacy.load('en_core_web_sm')
+            model_name = 'en_core_web_sm'
+            st.sidebar.info(f"Using lightweight model: {model_name} (limited system resources)")
+    except ImportError:
+        # psutil not available, try transformer, fallback to small
+        try:
+            nlp = spacy.load('en_core_web_trf')
+            model_name = 'en_core_web_trf'
+            st.sidebar.success(f"Using transformer model: {model_name}")
+        except OSError:
+            nlp = spacy.load('en_core_web_sm')
+            model_name = 'en_core_web_sm'
+            st.sidebar.warning(f"Using standard model: {model_name}")
+            
 except Exception as e:
-    st.error(f"Error loading spaCy model: {str(e)}")
-    st.error('Please ensure spaCy and the required models are installed correctly.')
+    st.error(f"Error loading spaCy models: {str(e)}")
+    st.error('Please ensure spaCy and at least one model is installed correctly.')
     st.stop()
 
 st.title('CSV Anonomyzer')
+
+# Create a prominent model indicator at the top of the main UI
+model_color = "green" if model_name == "en_core_web_trf" else "orange"
+model_display_name = "Transformer (High Accuracy)" if model_name == "en_core_web_trf" else "Standard (Basic)"
+st.markdown(f"<div style='padding:10px; background-color:{'#D4EDDA' if model_name == 'en_core_web_trf' else '#FFF3CD'}; border-radius:5px; margin-bottom:15px;'>"
+           f"<span style='font-weight:bold; color:{'green' if model_name == 'en_core_web_trf' else 'orange'};'>Active Model:</span> "
+           f"<span style='font-weight:bold;'>{model_display_name}</span>"
+           f"</div>", unsafe_allow_html=True)
+
 st.write('Upload a CSV file. All person names and locations will be replaced with "redacted".')
 
 # Add a text input at the TOP of the app to allow adding a name to first_names.txt (permanently)
@@ -137,12 +166,29 @@ def redact_text(text, nlp):
     
     return text
 
-# Debug: Show first 20 first names and regex pattern in Streamlit
-with st.expander('Debug: First Names and Regex Pattern'):
+# Debug: Show technical information and settings
+with st.expander('Debug: Technical Information'):
+    # System info
+    st.subheader("System Information")
+    try:
+        import psutil
+        memory_gb = psutil.virtual_memory().total / (1024 * 1024 * 1024)
+        st.write(f"System Memory: {memory_gb:.2f} GB")
+    except ImportError:
+        st.write("System Memory: [Unable to detect - psutil not available]")
+    
+    # Model info
+    st.subheader("Model Information")
+    st.write(f"Active Model: {model_name}")
+    st.write(f"Model Type: {'Transformer-based (large)' if model_name == 'en_core_web_trf' else 'Statistical (small)'}")
+    
+    # First names list info
+    st.subheader("First Names Data")
+    st.write(f"Total first names loaded: {len(FIRST_NAMES)}")
     st.write('Sample first names:', list(FIRST_NAMES)[:20])
     if FIRST_NAMES:
         pattern = r'(?<!\w)(' + '|'.join(re.escape(name) for name in FIRST_NAMES) + r')(?!\w)'
-        st.write('Regex pattern:', pattern)
+        st.write('First names regex pattern:', pattern)
     else:
         pattern = ''
 
